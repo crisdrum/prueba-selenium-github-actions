@@ -1,0 +1,21 @@
+name: Regresion Manual Prueba
+
+on:
+  workflow_dispatch: # Esto activa el botón
+
+jobs:
+  test-job:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+          
+      - name: Install Dependencies
+        run: dotnet restore
+        
+      - name: Run Selenium Test
+        run: dotnet test --configuration Release
