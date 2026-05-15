@@ -1,28 +1,46 @@
-name: Regresion Manual Prueba
+name: Regresion Jira Xray - Selenium C#
 
 on:
-  workflow_dispatch: # Esto activa el botón
+  workflow_dispatch:
+    inputs:
+      testSetKey:
+        description: 'ID del Test Set de Jira (ej. AAD-43855)'
+        required: true
+        default: 'AAD-43855'
 
 jobs:
-  test-job:
+  execution:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-          
-      - name: Install Dependencies
+
+      - name: Restaurar dependencias
         run: dotnet restore
-        
-      - name: Run Selenium Test
-        # Agregamos un "Logger" para que cree el archivo TRX
-        run: dotnet test --configuration Release --logger "trx;LogFileName=regresion_resultados.trx"
-        
-      - name: Descargar para revisar localmente
-        uses: actions/upload-artifact@v4
-        with:
-          name: Reporte-Regresion
-          path: "**/TestResults/regresion_resultados.trx"
+
+      # Paso 1: Correr los tests (Headless para el servidor)
+      - name: Ejecutar Selenium
+        run: |
+          dotnet test --configuration Release --logger "trx;LogFileName=results.trx"
+        continue-on-error: true 
+
+      # Paso 2: Usar tu Token para subir el resultado a Jira
+      - name: Reportar Resultados a Jira (via Token)
+        shell: pwsh
+        run: |
+          # Codificamos las credenciales que guardaste en los Secrets
+          $pair = "${{ secrets.JIRA_USER }}:${{ secrets.JIRA_TOKEN }}"
+          $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
+          $base64 = [Convert]::ToBase64String($bytes)
+          
+          # Enviamos el reporte .trx a la API de Xray
+          # Cambia "projectKey=AAD" si tu proyecto tiene otro prefijo
+          curl -H "Authorization: Basic $base64" `
+               -X POST "https://xray.cloud.getxray.app/api/v2/import/execution/vstest?projectKey=AAD" `
+               -H "Content-Type: application/xml" `
+               --data-binary @"**/results.trx"
